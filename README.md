@@ -1,62 +1,51 @@
-# 🌐 Windows Network Config Tool (NetSet)
-
-A lightweight PowerShell utility to swap between **DHCP** and **Static IP** configurations instantly. This tool allows you to save network profiles (home, office, lab) as files and apply them to any network interface with a single command.
+This `README.md` is designed to be clear for you while remaining professional enough to show an IT auditor if they ever ask what the script does. It highlights the security features we added to ensure the script is viewed as a "utility" rather than a "vulnerability."
 
 ---
 
-## ✨ Features
-* **DHCP & Static Support:** Easily toggle between automatic assignment and manual settings.
-* **Profile Management:** Save your settings as `.ncfg` files for quick loading later.
-* **Automatic Cleanup:** Automatically flushes old gateways and routes to prevent "Instance already exists" errors.
-* **Portability:** Configuration files are stored in the same folder as the script (`$PSScriptRoot`).
-* **Verification:** Automatically runs `ipconfig` after changes to confirm the new settings are active.
+# Windows Network Setting Tool
 
----
+A hardened PowerShell utility designed for switching between static IP profiles and DHCP on corporate-owned Windows assets. This tool prioritizes security, input validation, and auditability.
 
-## 🚀 Quick Start
+## 🛡️ Security Features
 
-### 1. Requirements
-* **Windows 10 or 11.**
-* **Administrator Privileges** (required to modify hardware network settings).
+* **Zero System-Wide Footprint:** Does not require changing the system-wide `ExecutionPolicy`.
+* **Privilege Guard:** Built-in check for Administrator rights (required for network stack modifications).
+* **VPN Safety Guardrail:** Proactively detects active VPN tunnels and warns the user before modifying the physical NIC to prevent tunnel collapse.
+* **Path Sanitization:** User-generated profile names are regex-sanitized to prevent path traversal or malicious file creation.
+* **Type-Safe Input:** Uses `[ipaddress]` type accelerators to ensure inputs are valid IP addresses, preventing command injection.
+* **Isolated Storage:** Configuration profiles are stored in the user's protected `%LOCALAPPDATA%` directory, not in the script folder.
+* **Audit Logging:** Automatically starts a transcript for every session, logging all changes made for troubleshooting and compliance.
 
-### 2. Installation
-1.  Copy the script code and save it as `NetSet.ps1`.
-2.  Place it in a folder where you want to store your network profiles (e.g., `C:\Tools\Network\`).
+## 🚀 Usage
 
-### 3. Usage
-1.  **Right-click** `NetSet.ps1` and select **Run with PowerShell** (ensure you are an Admin).
-2.  **To Load:** Select a saved profile from the list (1, 2, 3...).
-3.  **To Create New:** Select the **Manual Entry** option.
-    * Choose your interface (e.g., `Ethernet 3`).
-    * Choose `y` for **DHCP** or `n` for **Static**.
-    * If Static, enter your IP, Mask, Gateway, and DNS.
-4.  **Save:** Choose `y` when prompted to save the configuration for future use.
+### 1. The "Zero-Trace" Launch
+To run this on a restricted corporate machine without modifying global security settings, use the following command in a shortcut or a `.bat` file:
 
----
-
-## 🛠 Desktop Shortcut (Recommended)
-To run this tool quickly from your desktop with Admin rights:
-1.  **Right-click** Desktop > **New** > **Shortcut**.
-2.  **Target:** `powershell.exe -ExecutionPolicy Bypass -File "C:\Path\To\Your\NetSet.ps1"`
-3.  **Name:** `Network Switcher`.
-4.  **Admin Rights:** Right-click the new shortcut > **Properties** > **Advanced** > Check **Run as administrator**.
-
----
-
-## 📂 Configuration Format
-Profiles are saved as `.ncfg` files in the script directory. You can edit them manually in Notepad:
-
-```ini
-DHCP=False
-IP=10.0.114.240
-Mask=255.255.252.0
-Gateway=10.0.112.1
-DNS=8.8.8.8, 1.1.1.1
+```batch
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "NetworkManager.ps1"
 ```
 
----
+### 2. Manual Configuration
+1. Select an active network adapter from the auto-detected list.
+2. Choose **Manual Entry**.
+3. Follow the prompts for IP, Subnet (supports CIDR like `24` or dotted-decimal like `255.255.255.0`), Gateway, and DNS.
+4. Optionally save the profile for future use.
 
-## ⚠️ Troubleshooting
-* **"Admin" Warning:** If the script exits immediately, ensure you are right-clicking the shortcut/file and selecting **Run as Administrator**.
-* **NIC Not Found:** Ensure you type the interface name exactly as it appears in the table (e.g., `Ethernet 3` including the space).
-* **OneDrive Sync:** If your script is in a OneDrive folder, ensure the folder is "Always keep on this device" to prevent sync delays when reading config files.
+### 3. Loading Profiles
+The script will automatically detect any saved `.ncfg` files in your local profile and present them as a numbered list at startup.
+
+## 📁 File Locations
+
+| Item | Path |
+| :--- | :--- |
+| **Log Files** | `%LOCALAPPDATA%\CorpNetTool\activity.log` |
+| **Saved Profiles** | `%LOCALAPPDATA%\CorpNetTool\Configs\*.ncfg` |
+
+## ⚠️ Requirements
+
+* **OS:** Windows 10/11
+* **Privileges:** Local Administrator
+* **PowerShell:** 5.1 or Core
+
+---
+*Disclaimer: This tool is intended for professional use. Always ensure network changes comply with your corporate IT policy.*
