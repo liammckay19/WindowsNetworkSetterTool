@@ -18,10 +18,6 @@ A lightweight PowerShell utility to swap between **DHCP** and **Static IP** conf
 ### 1. Requirements
 * **Windows 10 or 11.**
 * **Administrator Privileges** (required to modify hardware network settings).
-* **PowerShell Execution Policy:** You must allow scripts to run. Open PowerShell as Admin and run:
-    ```powershell
-    Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-    ```
 
 ### 2. Installation
 1.  Copy the script code and save it as `NetSet.ps1`.
