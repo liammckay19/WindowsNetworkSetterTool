@@ -1,6 +1,4 @@
-This `README.md` is designed to be clear for you while remaining professional enough to show an IT auditor if they ever ask what the script does. It highlights the security features we added to ensure the script is viewed as a "utility" rather than a "vulnerability."
 
----
 
 # Windows Network Setting Tool
 
