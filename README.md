@@ -1,6 +1,3 @@
-This **README** is designed to help you (or anyone else) set up and use the script quickly. You can save this text as a file named `README.md` in the same folder as your script.
-
----
 
 # 🌐 Windows Network Configuration Tool (NetSet)
 
