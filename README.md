@@ -1,52 +1,56 @@
+## README: Windows Network Configuration Tool (GUI)
 
-
-# Windows Network Setting Tool
-
-A hardened PowerShell utility designed for switching between static IP profiles and DHCP on corporate-owned Windows assets. This tool prioritizes security, input validation, and auditability.
-
-## NOTE: VPN not compatible
-
-This tool may shut down any VPN you have active when you apply settings. Don't transfer files over a VPN when using this!
-
-## 🛡️ Security Features
-
-* **Zero System-Wide Footprint:** Does not require changing the system-wide `ExecutionPolicy`.
-* **Privilege Guard:** Built-in check for Administrator rights (required for network stack modifications).
-* **Path Sanitization:** User-generated profile names are regex-sanitized to prevent path traversal or malicious file creation.
-* **Type-Safe Input:** Uses `[ipaddress]` type accelerators to ensure inputs are valid IP addresses, preventing command injection.
-* **Isolated Storage:** Configuration profiles are stored in the user's protected `%LOCALAPPDATA%` directory, not in the script folder.
-* **Audit Logging:** Automatically starts a transcript for every session, logging all changes made for troubleshooting and compliance.
-
-## 🚀 Usage
-
-### 1. The "Zero-Trace" Launch
-To run this on a restricted corporate machine without modifying global security settings, use the following command in a shortcut or a `.bat` file:
-
-```batch
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "NetSet.ps1"
-```
-
-### 2. Manual Configuration
-1. Select an active network adapter from the auto-detected list.
-2. Choose **Manual Entry**.
-3. Follow the prompts for IP, Subnet (supports CIDR like `24` or dotted-decimal like `255.255.255.0`), Gateway, and DNS.
-4. Optionally save the profile for future use.
-
-### 3. Loading Profiles
-The script will automatically detect any saved `.ncfg` files in your local profile and present them as a numbered list at startup.
-
-## 📁 File Locations
-
-| Item | Path |
-| :--- | :--- |
-| **Log Files** | `%LOCALAPPDATA%\CorpNetTool\activity.log` |
-| **Saved Profiles** | `%LOCALAPPDATA%\CorpNetTool\Configs\*.ncfg` |
-
-## ⚠️ Requirements
-
-* **OS:** Windows 10/11
-* **Privileges:** Local Administrator
-* **PowerShell:** 5.1 or Core
+This repository contains a professional **PowerShell-based Graphical User Interface (GUI)** designed to simplify Windows network adapter management. It allows users to quickly switch between DHCP and Static IP configurations, save common profiles, and verify network changes in real-time.
 
 ---
-*Disclaimer: This tool is intended for professional use. Always ensure network changes comply with your corporate IT policy.*
+
+### ## Key Features
+
+* **Native Windows GUI:** Built using WinForms for a familiar, windowed experience—no command-line interaction required.
+* **Self-Elevating Admin Rights:** Automatically detects if it’s running without privileges and prompts for "Run as Administrator."
+* **Interface Auto-Detection:** Scans your system and populates a dropdown with only active ("Up") network adapters.
+* **Security & Validation:** Uses **Regex validation** to ensure IP addresses, Subnet masks, and Gateways are formatted correctly before applying them.
+* **Profile Management:** Save your most-used static configurations (e.g., "Office," "Lab," "Home") as `.ncfg` files for one-click loading.
+* **Real-Time Logging:** Features a built-in terminal log that shows success messages, errors, and verification status.
+
+---
+
+### ## How It Works
+
+
+
+The tool automates several complex PowerShell cmdlets (`Set-NetIPInterface`, `New-NetIPAddress`, and `Set-DnsClientServerAddress`) into a single "Apply" action. 
+
+1.  **Selection:** Choose your adapter from the dropdown.
+2.  **Configuration:** * Check **Use DHCP** to reset the adapter to automatic settings.
+    * Uncheck it to manually enter **Static IP**, **Subnet** (supports `255.255.255.0` or CIDR `/24` formats), **Gateway**, and **DNS**.
+3.  **Application:** Click **Apply Settings**. The tool clears existing static routes to prevent IP conflicts before assigning the new ones.
+4.  **Verification:** The tool waits 2 seconds for the hardware to initialize and then verifies the assignment against the OS.
+
+---
+
+### ## Installation & Usage
+
+1.  **Download:** Save the script as `NetSetGUI.ps1`.
+2.  **Execution:** Right-click the file and select **Run with PowerShell**.
+3.  **Profiles:** Saved profiles are stored in the same folder as the script with the `.ncfg` extension.
+
+---
+
+### ## Safety & Security
+
+* **Validation:** Prevents "fat-finger" errors by checking IP octet ranges (0-255).
+* **Clean Transitions:** When switching to Static IP, the script automatically removes the `0.0.0.0/0` destination prefix (Default Gateway) to ensure the new gateway becomes the primary route.
+* **Non-Destructive:** Does not modify registry keys directly; it utilizes standard Microsoft Network Adapter modules.
+
+---
+
+### ## Requirements
+
+* **OS:** Windows 10 or Windows 11.
+* **Permissions:** Administrator privileges (the script will prompt for these).
+* **Dependencies:** PowerShell 5.1 or higher (standard on modern Windows).
+
+---
+
+> **Note:** This tool is intended for network troubleshooting and administration. Ensure you have the correct network details before applying static settings to avoid losing connectivity.
