@@ -4,11 +4,14 @@
 
 A hardened PowerShell utility designed for switching between static IP profiles and DHCP on corporate-owned Windows assets. This tool prioritizes security, input validation, and auditability.
 
+## NOTE: VPN not compatible
+
+This tool may shut down any VPN you have active when you apply settings. Don't transfer files over a VPN when using this!
+
 ## 🛡️ Security Features
 
 * **Zero System-Wide Footprint:** Does not require changing the system-wide `ExecutionPolicy`.
 * **Privilege Guard:** Built-in check for Administrator rights (required for network stack modifications).
-* **VPN Safety Guardrail:** Proactively detects active VPN tunnels and warns the user before modifying the physical NIC to prevent tunnel collapse.
 * **Path Sanitization:** User-generated profile names are regex-sanitized to prevent path traversal or malicious file creation.
 * **Type-Safe Input:** Uses `[ipaddress]` type accelerators to ensure inputs are valid IP addresses, preventing command injection.
 * **Isolated Storage:** Configuration profiles are stored in the user's protected `%LOCALAPPDATA%` directory, not in the script folder.
