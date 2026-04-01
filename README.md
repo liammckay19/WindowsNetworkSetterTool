@@ -23,7 +23,7 @@ This tool may shut down any VPN you have active when you apply settings. Don't t
 To run this on a restricted corporate machine without modifying global security settings, use the following command in a shortcut or a `.bat` file:
 
 ```batch
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "NetworkManager.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "NetSet.ps1"
 ```
 
 ### 2. Manual Configuration
