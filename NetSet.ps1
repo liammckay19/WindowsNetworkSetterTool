@@ -1,132 +1,224 @@
-<#
-.SYNOPSIS
-    Hardened Network Configuration Tool for Corporate Environments.
-    Requires Administrator Privileges.
-#>
-
-# 1. Strict Admin Check
+# 1. --- Security: Ensure Admin Rights & Self-Elevation ---
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Error "Access Denied. Please relaunch PowerShell as an Administrator."
-    Pause; exit
-}
-
-# 2. Secure Environment Setup
-# Store configs in the user's protected local app data instead of the script folder
-$ConfigDir = Join-Path $env:LOCALAPPDATA "CorpNetTool\Configs"
-if (-not (Test-Path $ConfigDir)) { 
-    New-Item -Path $ConfigDir -ItemType Directory -Force | Out-Null 
-}
-
-$ConfigExt = ".ncfg"
-$LogPath = Join-Path $env:LOCALAPPDATA "CorpNetTool\activity.log"
-
-# Start Audit Logging
-Start-Transcript -Path $LogPath -Append -Confirm:$false | Out-Null
-
-function Apply-Settings {
-    param(
-        [Parameter(Mandatory)][string]$NIC,
-        [Parameter(Mandatory)][bool]$IsDHCP,
-        [ipaddress]$IP,
-        [string]$Mask,
-        [ipaddress]$Gateway,
-        [ipaddress[]]$DNS
-    )
-
-    Write-Host "`n[!] Initializing Configuration for: $NIC" -ForegroundColor Cyan
-
-    # Safety: Check for active VPN
-    $VPN = Get-NetAdapter | Where-Object { ($_.InterfaceDescription -match "VPN" -or $_.Name -match "VPN") -and $_.Status -eq "Up" }
-    if ($VPN) {
-        Write-Warning "Active VPN detected ($($VPN.Name)). Changing settings now may disconnect you."
-        $Continue = Read-Host "Proceed anyway? (y/N)"
-        if ($Continue -ne "y") { return $false }
-    }
-
+    $newProcess = New-Object System.Diagnostics.ProcessStartInfo "PowerShell"
+    $newProcess.Arguments = "& '$PSCommandPath'"
+    $newProcess.Verb = "runas"
     try {
-        if ($IsDHCP) {
-            Set-NetIPInterface -InterfaceAlias $NIC -Dhcp Enabled -ErrorAction Stop
-            Set-DnsClientServerAddress -InterfaceAlias $NIC -ResetServerAddresses -ErrorAction Stop
-        } else {
-            # Robust Clean-up
-            Remove-NetIPAddress -InterfaceAlias $NIC -Confirm:$false -ErrorAction SilentlyContinue
-            Remove-NetRoute -InterfaceAlias $NIC -DestinationPrefix "0.0.0.0/0" -Confirm:$false -ErrorAction SilentlyContinue
-
-            # Prefix Calculation (Hardened)
-            if ($Mask -contains ".") {
-                $bits = 0
-                foreach ($octet in $Mask.Split('.')) {
-                    $bits += ([System.Convert]::ToString([int]$octet, 2).ToCharArray() | Where-Object { $_ -eq '1' }).Count
-                }
-                $Prefix = $bits
-            } else { $Prefix = [int]$Mask }
-
-            $Params = @{
-                InterfaceAlias = $NIC
-                IPAddress      = $IP.IPAddressToString
-                PrefixLength   = $Prefix
-                ErrorAction    = "Stop"
-            }
-            if ($Gateway) { $Params.DefaultGateway = $Gateway.IPAddressToString }
-
-            New-NetIPAddress @Params | Out-Null
-
-            if ($DNS) {
-                Set-DnsClientServerAddress -InterfaceAlias $NIC -ServerAddresses ($DNS | ForEach-Object { $_.IPAddressToString }) -ErrorAction Stop
-            }
-        }
-        Write-Host "SUCCESS: Settings applied to $NIC" -ForegroundColor Green
-        return $true
+        [System.Diagnostics.Process]::Start($newProcess)
     } catch {
-        Write-Error "Failed to apply settings: $($_.Exception.Message)"
-        return $false
+        Add-Type -AssemblyName PresentationFramework
+        [System.Windows.MessageBox]::Show("This tool requires Administrator privileges to change network settings.", "Admin Required", "OK", "Warning")
     }
-}
-
-# --- Main Logic ---
-Write-Host "--- Corporate Network Manager (Secure Mode) ---" -ForegroundColor Magenta
-
-# Selection Logic (Whitelisted Adapters Only)
-$ValidAdapters = Get-NetAdapter | Where-Object { $_.Status -ne "Disconnected" }
-$ValidAdapters | Select-Object Name, Status, LinkSpeed | Format-Table
-
-$Selection = Read-Host "Enter the Interface Name exactly as shown above"
-if ($Selection -notin $ValidAdapters.Name) {
-    Write-Error "Invalid Interface Selection."
     exit
 }
 
-$Configs = Get-ChildItem -Path $ConfigDir -Filter "*$ConfigExt"
-if ($Configs.Count -gt 0) {
-    Write-Host "Available Profiles:"
-    for ($i=0; $i -lt $Configs.Count; $i++) { Write-Host "$($i+1). $($Configs[$i].BaseName)" }
-    $Choice = Read-Host "Select Profile # (or press Enter for Manual)"
-    
-    if ($Choice -match '^\d+$' -and [int]$Choice -le $Configs.Count) {
-        $Data = Get-Content $Configs[[int]$Choice -1].FullName | ConvertFrom-StringData
-        Apply-Settings -NIC $Selection -IsDHCP ([bool]::Parse($Data.DHCP)) `
-                       -IP $Data.IP -Mask $Data.Mask -Gateway $Data.Gateway -DNS $Data.DNS
-        Stop-Transcript; exit
+# Load GUI assemblies
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# --- Configuration Storage Settings ---
+$ConfigDir = $PSScriptRoot
+$ConfigExt = ".ncfg"
+
+if (-not (Test-Path $ConfigDir)) {
+    New-Item -Path $ConfigDir -ItemType Directory -Force | Out-Null
+}
+
+# --- GUI Setup ---
+$Form = New-Object System.Windows.Forms.Form
+$Form.Text = "Secure Network Config Tool"
+$Form.Size = New-Object System.Drawing.Size(500, 650)
+$Form.StartPosition = "CenterScreen"
+$Form.FormBorderStyle = "FixedDialog"
+$Form.MaximizeBox = $false
+
+$DefaultFont = New-Object System.Drawing.Font("Segoe UI", 9)
+$Form.Font = $DefaultFont
+
+function New-Label ($Text, $X, $Y) {
+    $Label = New-Object System.Windows.Forms.Label
+    $Label.Text = $Text
+    $Label.Location = New-Object System.Drawing.Point($X, $Y)
+    $Label.AutoSize = $true
+    return $Label
+}
+
+# --- Controls ---
+$Form.Controls.Add((New-Label "Select Network Interface:" 20 20))
+$cmbAdapters = New-Object System.Windows.Forms.ComboBox
+$cmbAdapters.Location = New-Object System.Drawing.Point(20, 40)
+$cmbAdapters.Size = New-Object System.Drawing.Size(440, 25)
+$cmbAdapters.DropDownStyle = "DropDownList"
+$Form.Controls.Add($cmbAdapters)
+
+$Form.Controls.Add((New-Label "Saved Configurations:" 20 75))
+$lstConfigs = New-Object System.Windows.Forms.ListBox
+$lstConfigs.Location = New-Object System.Drawing.Point(20, 95)
+$lstConfigs.Size = New-Object System.Drawing.Size(440, 80)
+$Form.Controls.Add($lstConfigs)
+
+$chkDHCP = New-Object System.Windows.Forms.CheckBox
+$chkDHCP.Text = "Use DHCP (Auto-assign IP and DNS)"
+$chkDHCP.Location = New-Object System.Drawing.Point(20, 190)
+$chkDHCP.Size = New-Object System.Drawing.Size(250, 25)
+$Form.Controls.Add($chkDHCP)
+
+$Form.Controls.Add((New-Label "IP Address:" 20 225))
+$txtIP = New-Object System.Windows.Forms.TextBox
+$txtIP.Location = New-Object System.Drawing.Point(120, 222)
+$txtIP.Size = New-Object System.Drawing.Size(340, 25)
+$Form.Controls.Add($txtIP)
+
+$Form.Controls.Add((New-Label "Subnet Mask:" 20 255))
+$txtMask = New-Object System.Windows.Forms.TextBox
+$txtMask.Location = New-Object System.Drawing.Point(120, 252)
+$txtMask.Size = New-Object System.Drawing.Size(340, 25)
+$Form.Controls.Add($txtMask)
+
+$Form.Controls.Add((New-Label "Gateway:" 20 285))
+$txtGateway = New-Object System.Windows.Forms.TextBox
+$txtGateway.Location = New-Object System.Drawing.Point(120, 282)
+$txtGateway.Size = New-Object System.Drawing.Size(340, 25)
+$Form.Controls.Add($txtGateway)
+
+$Form.Controls.Add((New-Label "DNS Servers:" 20 315))
+$txtDNS = New-Object System.Windows.Forms.TextBox
+$txtDNS.Location = New-Object System.Drawing.Point(120, 312)
+$txtDNS.Size = New-Object System.Drawing.Size(340, 25)
+$Form.Controls.Add($txtDNS)
+
+$btnApply = New-Object System.Windows.Forms.Button
+$btnApply.Text = "Apply Settings"
+$btnApply.Location = New-Object System.Drawing.Point(20, 355)
+$btnApply.Size = New-Object System.Drawing.Size(120, 35)
+$btnApply.BackColor = [System.Drawing.Color]::LightGreen
+$Form.Controls.Add($btnApply)
+
+$txtSaveName = New-Object System.Windows.Forms.TextBox
+$txtSaveName.Location = New-Object System.Drawing.Point(160, 362)
+$txtSaveName.Size = New-Object System.Drawing.Size(170, 25)
+$txtSaveName.Text = "ProfileName"
+$Form.Controls.Add($txtSaveName)
+
+$btnSave = New-Object System.Windows.Forms.Button
+$btnSave.Text = "Save Config"
+$btnSave.Location = New-Object System.Drawing.Point(340, 355)
+$btnSave.Size = New-Object System.Drawing.Size(120, 35)
+$btnSave.BackColor = [System.Drawing.Color]::LightBlue
+$Form.Controls.Add($btnSave)
+
+$txtLog = New-Object System.Windows.Forms.RichTextBox
+$txtLog.Location = New-Object System.Drawing.Point(20, 410)
+$txtLog.Size = New-Object System.Drawing.Size(440, 180)
+$txtLog.ReadOnly = $true
+$txtLog.BackColor = [System.Drawing.Color]::Black
+$txtLog.ForeColor = [System.Drawing.Color]::LimeGreen
+$txtLog.Font = New-Object System.Drawing.Font("Consolas", 9)
+$Form.Controls.Add($txtLog)
+
+# --- Logic Functions ---
+
+function Log-Message ($Msg, $Color = "LimeGreen") {
+    $txtLog.SelectionStart = $txtLog.TextLength
+    $txtLog.SelectionLength = 0
+    $txtLog.SelectionColor = [System.Drawing.Color]::FromName($Color)
+    $txtLog.AppendText("[$((Get-Date).ToString('HH:mm:ss'))] $Msg`n")
+    $txtLog.ScrollToCaret()
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+# Validation: Checks if a string is a valid IPv4
+function Test-IsValidIP ($IP) {
+    if ([string]::IsNullOrWhiteSpace($IP)) { return $false }
+    return $IP -match '^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+}
+
+# Validation: Checks for valid subnet (255.x.x.x or CIDR /1-32)
+function Test-IsValidSubnet ($Mask) {
+    if ($Mask -match '^\d+$') { return ([int]$Mask -ge 1 -and [int]$Mask -le 32) }
+    return Test-IsValidIP $Mask
+}
+
+function Refresh-Configs {
+    $lstConfigs.Items.Clear()
+    if (Test-Path $ConfigDir) {
+        Get-ChildItem -Path $ConfigDir -Filter "*$ConfigExt" | ForEach-Object { $lstConfigs.Items.Add($_.BaseName) | Out-Null }
     }
 }
 
-# Manual Entry with Validation
-$isDHCPInput = (Read-Host "Use DHCP? (y/n)") -eq 'y'
-if (-not $isDHCPInput) {
-    [ipaddress]$userIP   = Read-Host "Enter IP Address (e.g. 192.168.1.50)"
-    $userMask            = Read-Host "Enter Mask (e.g. 24 or 255.255.255.0)"
-    [ipaddress]$userGW   = Read-Host "Enter Gateway (Optional)"
-    $userDNS             = Read-Host "Enter DNS (Optional, comma separated)"
-    
-    if (Apply-Settings -NIC $Selection -IsDHCP $false -IP $userIP -Mask $userMask -Gateway $userGW -DNS $userDNS) {
-        if ((Read-Host "Save profile? (y/n)") -eq 'y') {
-            $SafeName = (Read-Host "Profile Name") -replace '[^a-zA-Z0-9]', ''
-            $Content = "DHCP=False`nIP=$userIP`nMask=$userMask`nGateway=$userGW`nDNS=$userDNS"
-            $Content | Out-File (Join-Path $ConfigDir "$SafeName$ConfigExt") -Encoding utf8
+# --- Event Handlers ---
+
+$Form.Add_Load({
+    Get-NetAdapter | Where-Object Status -eq "Up" | ForEach-Object { $cmbAdapters.Items.Add($_.Name) | Out-Null }
+    if ($cmbAdapters.Items.Count -gt 0) { $cmbAdapters.SelectedIndex = 0 }
+    Refresh-Configs
+})
+
+$chkDHCP.Add_CheckedChanged({
+    $State = -not $chkDHCP.Checked
+    @($txtIP, $txtMask, $txtGateway, $txtDNS) | ForEach-Object { $_.Enabled = $State }
+})
+
+$lstConfigs.Add_SelectedIndexChanged({
+    if ($lstConfigs.SelectedItem) {
+        $Data = Get-Content (Join-Path $ConfigDir "$($lstConfigs.SelectedItem)$ConfigExt") | ConvertFrom-StringData
+        $chkDHCP.Checked = ($Data.DHCP -eq "True")
+        if (-not $chkDHCP.Checked) {
+            $txtIP.Text = $Data.IP; $txtMask.Text = $Data.Mask; $txtGateway.Text = $Data.Gateway; $txtDNS.Text = $Data.DNS
         }
+        Log-Message "Profile Loaded: $($lstConfigs.SelectedItem)"
     }
-} else {
-    Apply-Settings -NIC $Selection -IsDHCP $true
-}
+})
 
-Stop-Transcript
+$btnSave.Add_Click({
+    $Name = $txtSaveName.Text.Replace(" ", "_")
+    if ([string]::IsNullOrWhiteSpace($Name)) { [System.Windows.Forms.MessageBox]::Show("Enter a profile name."); return }
+    $Content = "DHCP=$($chkDHCP.Checked)`nIP=$($txtIP.Text)`nMask=$($txtMask.Text)`nGateway=$($txtGateway.Text)`nDNS=$($txtDNS.Text)"
+    $Content | Out-File (Join-Path $ConfigDir "$Name$ConfigExt") -Encoding utf8
+    Log-Message "Saved profile: $Name"
+    Refresh-Configs
+})
+
+$btnApply.Add_Click({
+    $NIC = $cmbAdapters.SelectedItem
+    if (-not $NIC) { Log-Message "ERROR: No Interface." "Red"; return }
+
+    $btnApply.Enabled = $false
+    Log-Message "Applying settings to $NIC..."
+
+    if ($chkDHCP.Checked) {
+        try {
+            Set-NetIPInterface -InterfaceAlias $NIC -Dhcp Enabled -ErrorAction Stop
+            Set-DnsClientServerAddress -InterfaceAlias $NIC -ResetServerAddresses -ErrorAction Stop
+            Log-Message "DHCP Enabled Successfully."
+        } catch { Log-Message "DHCP Error: $($_.Exception.Message)" "Red" }
+    } else {
+        # 2. --- Security: Validate Input before executing Commands ---
+        if (-not (Test-IsValidIP $txtIP.Text)) { Log-Message "Invalid IP Format!" "Red"; $btnApply.Enabled = $true; return }
+        if (-not (Test-IsValidSubnet $txtMask.Text)) { Log-Message "Invalid Subnet/CIDR!" "Red"; $btnApply.Enabled = $true; return }
+
+        try {
+            # Clear old routes/IPs safely
+            Remove-NetIPAddress -InterfaceAlias $NIC -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-NetRoute -InterfaceAlias $NIC -DestinationPrefix "0.0.0.0/0" -Confirm:$false -ErrorAction SilentlyContinue
+
+            $Prefix = if ($txtMask.Text -like "*.*") { 
+                $Octets = $txtMask.Text.Split('.'); $Bin = ""; foreach ($o in $Octets) { $Bin += [Convert]::ToString([int]$o, 2).PadLeft(8, '0') }; ($Bin.Replace('0', '')).Length 
+            } else { $txtMask.Text }
+
+            $Params = @{ InterfaceAlias = $NIC; IPAddress = $txtIP.Text; PrefixLength = $Prefix; ErrorAction = "Stop" }
+            if ($txtGateway.Text -and (Test-IsValidIP $txtGateway.Text)) { $Params.DefaultGateway = $txtGateway.Text }
+            
+            New-NetIPAddress @Params | Out-Null
+            
+            if ($txtDNS.Text) {
+                $DnsList = $txtDNS.Text -split ',' | ForEach-Object { $_.Trim() }
+                Set-DnsClientServerAddress -InterfaceAlias $NIC -ServerAddresses $DnsList -ErrorAction Stop
+            }
+            Log-Message "Static IP Applied: $($txtIP.Text)"
+        } catch { Log-Message "Error: $($_.Exception.Message)" "Red" }
+    }
+    $btnApply.Enabled = $true
+})
+
+$Form.ShowDialog() | Out-Null
