@@ -1,10 +1,10 @@
-## README: Windows Network Configuration Tool (GUI)
+# README: Windows Network Configuration Tool (GUI)
 
 This repository contains a professional **PowerShell-based Graphical User Interface (GUI)** designed to simplify Windows network adapter management. It allows users to quickly switch between DHCP and Static IP configurations, save common profiles, and verify network changes in real-time.
 
 ---
 
-### ## Key Features
+## Key Features
 
 * **Native Windows GUI:** Built using WinForms for a familiar, windowed experience—no command-line interaction required.
 * **Self-Elevating Admin Rights:** Automatically detects if it’s running without privileges and prompts for "Run as Administrator."
@@ -15,7 +15,7 @@ This repository contains a professional **PowerShell-based Graphical User Interf
 
 ---
 
-### ## How It Works
+## How It Works
 
 
 
@@ -29,7 +29,7 @@ The tool automates several complex PowerShell cmdlets (`Set-NetIPInterface`, `Ne
 
 ---
 
-### ## Installation & Usage
+## Installation & Usage
 
 1.  **Download:** Save the script as `NetSetGUI.ps1`.
 2.  **Execution:** Right-click the file and select **Run with PowerShell**.
@@ -37,7 +37,7 @@ The tool automates several complex PowerShell cmdlets (`Set-NetIPInterface`, `Ne
 
 ---
 
-### ## Safety & Security
+## Safety & Security
 
 * **Validation:** Prevents "fat-finger" errors by checking IP octet ranges (0-255).
 * **Clean Transitions:** When switching to Static IP, the script automatically removes the `0.0.0.0/0` destination prefix (Default Gateway) to ensure the new gateway becomes the primary route.
@@ -45,7 +45,7 @@ The tool automates several complex PowerShell cmdlets (`Set-NetIPInterface`, `Ne
 
 ---
 
-### ## Requirements
+## Requirements
 
 * **OS:** Windows 10 or Windows 11.
 * **Permissions:** Administrator privileges (the script will prompt for these).
